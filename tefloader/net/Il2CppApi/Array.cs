@@ -93,6 +93,37 @@ public static class Array
         }
     }
 
+    // il2cpp_array_resize - 扩容数组：创建新数组并复制旧数据，返回新数组句柄（失败返回 IntPtr.Zero）
+    public static IntPtr il2cpp_array_resize(IntPtr arrayPtr, int newSize)
+    {
+        if (arrayPtr == IntPtr.Zero || newSize <= 0)
+            return IntPtr.Zero;
+
+        try
+        {
+            var arrayHandle = GCHandle.FromIntPtr(arrayPtr);
+            var array = (System.Array)arrayHandle.Target;
+
+            if (array == null || newSize <= array.Length)
+                return IntPtr.Zero;
+
+            var elementType = array.GetType().GetElementType();
+            if (elementType == null)
+                return IntPtr.Zero;
+
+            var newArray = System.Array.CreateInstance(elementType, newSize);
+            System.Array.Copy(array, newArray, array.Length);
+
+            var newHandle = GCHandle.Alloc(newArray);
+            return GCHandle.ToIntPtr(newHandle);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"Failed to resize array: {ex.Message}");
+            return IntPtr.Zero;
+        }
+    }
+
     // ==================== 辅助方法：多维索引转换 ====================
 
     // 将一维索引转换为多维索引（行主序，C语言风格）

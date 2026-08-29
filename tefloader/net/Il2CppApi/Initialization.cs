@@ -380,6 +380,7 @@ public static unsafe class Initialization
             RegisterApiMethod<DelegateIl2CppArrayElementSize>(Array.il2cpp_array_element_size,
                 "il2cpp_array_element_size");
             RegisterApiMethod<DelegateIl2CppArrayLength>(Array.il2cpp_array_length, "il2cpp_array_length");
+            RegisterApiMethod<DelegateIl2CppArrayResize>(Array.il2cpp_array_resize, "il2cpp_array_resize");
             RegisterApiMethod<DelegateIl2CppArrayAt>(Array.il2cpp_array_at, "il2cpp_array_at");
             RegisterApiMethod<DelegateIl2CppArraySet>(Array.il2cpp_array_set, "il2cpp_array_set");
             RegisterApiMethod<DelegateIl2CppArrayFill>(Array.il2cpp_array_fill, "il2cpp_array_fill");
@@ -397,6 +398,9 @@ public static unsafe class Initialization
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate int DelegateIl2CppArrayLength(IntPtr arrayPtr);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr DelegateIl2CppArrayResize(IntPtr arrayPtr, int newSize);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate bool DelegateIl2CppArrayAt(IntPtr arrayPtr, int index, void* outValue);
