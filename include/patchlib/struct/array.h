@@ -103,6 +103,17 @@ DEFINE_FUNCTION(bool, patchlib_array_copy_from_c, patch_handle_t dest, const voi
  */
 DEFINE_FUNCTION(bool, patchlib_array_copy_to_c, void* dest, patch_handle_t src, size_t count);
 
+/**
+ * @brief 从源数组复制元素到目标数组
+ * @param dest 目标数组句柄
+ * @param src 源数组句柄
+ * @param count 要复制的元素数量
+ * @return true 成功, false 失败
+ * @note 两个数组的元素类型大小必须相同
+ * @note 目标数组必须有足够的空间容纳 count 个元素
+ */
+DEFINE_FUNCTION(bool, patchlib_array_copy, patch_handle_t dest, patch_handle_t src, size_t count);
+
 #ifdef __cplusplus
 }
 #endif

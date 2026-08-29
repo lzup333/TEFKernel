@@ -24,7 +24,7 @@ using System.Runtime.InteropServices;
 
 namespace tefloader.Il2CppApi;
 
-public static class Initialization
+public static unsafe class Initialization
 {
     private static readonly List<IntPtr> KeepAlivePointers = [];
     private static readonly List<Delegate> KeepAliveDelegates = [];
@@ -45,7 +45,7 @@ public static class Initialization
     }
 
     /// <summary>
-    /// 一键注册所有 IL2CPP API
+    ///     一键注册所有 IL2CPP API
     /// </summary>
     public static void RegisterAllApis()
     {
@@ -57,10 +57,10 @@ public static class Initialization
         StringApi.Init();
         ArrayApi.Init();
     }
-    
+
     public static class BasicApi
     {
-        public static unsafe void Init()
+        public static void Init()
         {
             RegisterApiMethod<DelegateIl2CppDomainGet>(Basic.il2cpp_domain_get, "il2cpp_domain_get");
             RegisterApiMethod<DelegateIl2CppDomainGetAssemblies>(Basic.il2cpp_domain_get_assemblies,
@@ -74,7 +74,7 @@ public static class Initialization
         private delegate IntPtr DelegateIl2CppDomainGet();
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate IntPtr* DelegateIl2CppDomainGetAssemblies(IntPtr domainPtr, out int size);
+        private delegate IntPtr* DelegateIl2CppDomainGetAssemblies(IntPtr domainPtr, out int size);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate IntPtr DelegateIl2CppGetCorlib();
@@ -88,7 +88,7 @@ public static class Initialization
 
     public static class ClassApi
     {
-        public static unsafe void Init()
+        public static void Init()
         {
             // Register all Class API methods
             RegisterApiMethod<DelegateIl2CppClassFromName>(Class.il2cpp_class_from_name, "il2cpp_class_from_name");
@@ -128,7 +128,7 @@ public static class Initialization
         private delegate IntPtr DelegateIl2CppClassFromName(IntPtr imagePtr, string namespaze, string name);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate IntPtr* DelegateIl2CppClassGetNestedTypes(IntPtr classPtr, out int size);
+        private delegate IntPtr* DelegateIl2CppClassGetNestedTypes(IntPtr classPtr, out int size);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate string DelegateIl2CppClassGetName(IntPtr classPtr);
@@ -137,13 +137,13 @@ public static class Initialization
         private delegate IntPtr DelegateIl2CppClassGetParent(IntPtr classPtr);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate IntPtr* DelegateIl2CppClassGetMethods(IntPtr classPtr, out int size);
+        private delegate IntPtr* DelegateIl2CppClassGetMethods(IntPtr classPtr, out int size);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate IntPtr* DelegateIl2CppClassGetFields(IntPtr classPtr, out int size);
+        private delegate IntPtr* DelegateIl2CppClassGetFields(IntPtr classPtr, out int size);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate IntPtr* DelegateIl2CppClassGetProperties(IntPtr classPtr, out int size);
+        private delegate IntPtr* DelegateIl2CppClassGetProperties(IntPtr classPtr, out int size);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate string? DelegateIl2CppClassGetNamespace(IntPtr classPtr);
@@ -173,12 +173,12 @@ public static class Initialization
         private delegate IntPtr DelegateIl2CppObjectNew(IntPtr classPtr);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate IntPtr
+        private delegate IntPtr
             DelegateIl2CppClassMakeGeneric(IntPtr classPtr, IntPtr* typesPtr, int typesCount);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate bool DelegateIl2CppClassIsSame(IntPtr classPtr1, IntPtr classPtr2);
-        
+
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate int DelegateIl2CppTypeGetType(IntPtr typePtr);
 
@@ -188,7 +188,7 @@ public static class Initialization
 
     public static class MethodApi
     {
-        public static unsafe void Init()
+        public static void Init()
         {
             // Register all Method API methods
             RegisterApiMethod<DelegateIl2CppMethodGetName>(Method.il2cpp_method_get_name, "il2cpp_method_get_name");
@@ -214,10 +214,14 @@ public static class Initialization
                 "il2cpp_method_make_generic");
             RegisterApiMethod<DelegateIl2CppHookMethod>(HookManager.il2cpp_hook_method, "il2cpp_hook_method");
             RegisterApiMethod<DelegateIl2CppUnhookMethod>(HookManager.il2cpp_unhook_method, "il2cpp_unhook_method");
-            RegisterApiMethod<DelegateIl2CppIsMethodHooked>(HookManager.il2cpp_is_method_hooked, "il2cpp_is_method_hooked");
-            RegisterApiMethod<DelegateIl2CppHasSingleHookNode>(HookManager.il2cpp_has_single_hook_node, "il2cpp_has_single_hook_node");
-            RegisterApiMethod<DelegateIl2CppGetHookedMethodSig>(HookManager.il2cpp_get_hooked_method_sig, "il2cpp_get_hooked_method_sig");
-            RegisterApiMethod<DelegateIl2CppGetMethodByHookNode>(HookManager.il2cpp_get_method_by_hook_node, "il2cpp_get_method_by_hook_node");
+            RegisterApiMethod<DelegateIl2CppIsMethodHooked>(HookManager.il2cpp_is_method_hooked,
+                "il2cpp_is_method_hooked");
+            RegisterApiMethod<DelegateIl2CppHasSingleHookNode>(HookManager.il2cpp_has_single_hook_node,
+                "il2cpp_has_single_hook_node");
+            RegisterApiMethod<DelegateIl2CppGetHookedMethodSig>(HookManager.il2cpp_get_hooked_method_sig,
+                "il2cpp_get_hooked_method_sig");
+            RegisterApiMethod<DelegateIl2CppGetMethodByHookNode>(HookManager.il2cpp_get_method_by_hook_node,
+                "il2cpp_get_method_by_hook_node");
         }
 
         // Delegates for Method API methods
@@ -247,20 +251,21 @@ public static class Initialization
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate IntPtr DelegateIl2CppMethodGetClass(IntPtr methodPtr);
-        
+
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate uint DelegateIl2CppMethodGetToken(IntPtr methodPtr);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate bool DelegateIl2CppMethodInvoke(IntPtr methodPtr, IntPtr objPtr, IntPtr* paramsPtr,
+        private delegate bool DelegateIl2CppMethodInvoke(IntPtr methodPtr, IntPtr objPtr, IntPtr* paramsPtr,
             IntPtr returnValuePtr);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate IntPtr DelegateIl2cppMethodMakeGeneric(IntPtr methodPtr, IntPtr* typesPtr,
+        private delegate IntPtr DelegateIl2cppMethodMakeGeneric(IntPtr methodPtr, IntPtr* typesPtr,
             int typesCount);
-        
+
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate short DelegateIl2CppHookMethod(IntPtr methodHandle, IntPtr methodSignature, IntPtr prefixHook, IntPtr postfixHook);
+        private delegate short DelegateIl2CppHookMethod(IntPtr methodHandle, IntPtr methodSignature, IntPtr prefixHook,
+            IntPtr postfixHook);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate bool DelegateIl2CppUnhookMethod(short nodeIndex);
@@ -347,7 +352,7 @@ public static class Initialization
 
     public static class StringApi
     {
-        public static unsafe void Init()
+        public static void Init()
         {
             // Register all String API methods
             RegisterApiMethod<DelegateIl2CppStringLength>(String.il2cpp_string_length, "il2cpp_string_length");
@@ -360,15 +365,15 @@ public static class Initialization
         private delegate int DelegateIl2CppStringLength(IntPtr strPtr);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate IntPtr DelegateIl2CppStringNew(byte* cstrPtr);
+        private delegate IntPtr DelegateIl2CppStringNew(byte* cstrPtr);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate byte* DelegateIl2CppStringCStr(IntPtr strPtr);
+        private delegate byte* DelegateIl2CppStringCStr(IntPtr strPtr);
     }
 
     public static class ArrayApi
     {
-        public static unsafe void Init()
+        public static void Init()
         {
             // Register all Array API methods
             RegisterApiMethod<DelegateIl2CppArrayNew>(Array.il2cpp_array_new, "il2cpp_array_new");
@@ -380,6 +385,7 @@ public static class Initialization
             RegisterApiMethod<DelegateIl2CppArrayFill>(Array.il2cpp_array_fill, "il2cpp_array_fill");
             RegisterApiMethod<DelegateIl2CppArrayCopyFromC>(Array.il2cpp_array_copy_from_c, "il2cpp_array_copy_from_c");
             RegisterApiMethod<DelegateIl2CppArrayCopyToC>(Array.il2cpp_array_copy_to_c, "il2cpp_array_copy_to_c");
+            RegisterApiMethod<DelegateIl2CppArrayCopy>(Array.il2cpp_array_copy, "il2cpp_array_copy");
         }
 
         // Delegates
@@ -393,18 +399,21 @@ public static class Initialization
         private delegate int DelegateIl2CppArrayLength(IntPtr arrayPtr);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate bool DelegateIl2CppArrayAt(IntPtr arrayPtr, int index, void* outValue);
+        private delegate bool DelegateIl2CppArrayAt(IntPtr arrayPtr, int index, void* outValue);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate bool DelegateIl2CppArraySet(IntPtr arrayPtr, int index, void* value);
+        private delegate bool DelegateIl2CppArraySet(IntPtr arrayPtr, int index, void* value);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate bool DelegateIl2CppArrayFill(IntPtr arrayPtr, void* value);
+        private delegate bool DelegateIl2CppArrayFill(IntPtr arrayPtr, void* value);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate bool DelegateIl2CppArrayCopyFromC(IntPtr destArrayPtr, void* src, int count);
+        private delegate bool DelegateIl2CppArrayCopyFromC(IntPtr destArrayPtr, void* src, int count);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private unsafe delegate bool DelegateIl2CppArrayCopyToC(void* dest, IntPtr srcArrayPtr, int count);
+        private delegate bool DelegateIl2CppArrayCopyToC(void* dest, IntPtr srcArrayPtr, int count);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate bool DelegateIl2CppArrayCopy(IntPtr destArrayPtr, IntPtr srcArrayPtr, int count);
     }
 }

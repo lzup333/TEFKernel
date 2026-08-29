@@ -29,27 +29,30 @@
 
 #include "internal/kernel_state.h"
 #include "internal/log.h"
+#include "patchlib/field.h"
 #include "patchlib/method.h"
 #include "patchlib/type.h"
+#include "terraria/asset.h"
+#include "terraria/texture2d.h"
 
 void start_test() {
-    patch_handle_t fmod = patchlib_type_get_type("System", "FMOD");
-    if (!fmod) {
+    patch_handle_t type = terraria_asset_get_generic_class(terraria_texture2d_get_class());
+    if (!type) {
         TEKLOG_ERROR("Failed to get FMOD::System type");
         return;
     }
 
     tefstd_vector_t vec;
-    patchlib_type_get_methods(fmod, false, &vec);
+    patchlib_type_get_fields(type, false, &vec);
 
     const size_t count = tefstd_vector_size(&vec);
-    TEKLOG_INFO("Searching %zu methods for CreateSound...", count);
+    TEKLOG_INFO("Searching %zu field for Asset<Texture2d>...", count);
 
     for (size_t i = 0; i < count; ++i) {
         auto e = static_cast<patch_handle_t*>(tefstd_vector_at(&vec, i));
         if (!e) continue;
 
-        const char* name = patchlib_method_get_name(*e);
+        const char* name = patchlib_field_get_name(*e);
         TEKLOG_INFO("Found: %s", name);
     }
 

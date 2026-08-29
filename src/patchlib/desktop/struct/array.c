@@ -23,12 +23,13 @@
 #include "patchlib/struct/array.h"
 
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "internal/log.h"
 #include <string.h>
 #include "../../il2cpp_api.h"
 
-bool patchlib_array_at(patch_handle_t array, const size_t index, void* out_value) {
+bool patchlib_array_at(patch_handle_t array, const size_t index, void *out_value) {
     TEKLOG_DEBUG("patchlib_array_at called: array=%p, index=%zu, out_value=%p",
                  array, index, out_value);
 
@@ -43,7 +44,7 @@ bool patchlib_array_at(patch_handle_t array, const size_t index, void* out_value
     return true;
 }
 
-bool patchlib_array_set(patch_handle_t array, const size_t index, void* new_value) {
+bool patchlib_array_set(patch_handle_t array, const size_t index, void *new_value) {
     TEKLOG_DEBUG("patchlib_array_set called: array=%p, index=%zu, new_value=%p",
                  array, index, new_value);
 
@@ -58,7 +59,7 @@ bool patchlib_array_set(patch_handle_t array, const size_t index, void* new_valu
     return true;
 }
 
-bool patchlib_array_fill(patch_handle_t array, void* value) {
+bool patchlib_array_fill(patch_handle_t array, void *value) {
     TEKLOG_DEBUG("patchlib_array_fill called: array=%p, value=%p",
                  array, value);
 
@@ -73,7 +74,7 @@ bool patchlib_array_fill(patch_handle_t array, void* value) {
     return true;
 }
 
-bool patchlib_array_copy_from_c(patch_handle_t dest, const void* src, const size_t count) {
+bool patchlib_array_copy_from_c(patch_handle_t dest, const void *src, const size_t count) {
     TEKLOG_DEBUG("patchlib_array_copy_from_c called: dest=%p, src=%p, count=%zu", dest, src, count);
 
     if (!patchlib_is_valid(dest)) {
@@ -91,7 +92,7 @@ bool patchlib_array_copy_from_c(patch_handle_t dest, const void* src, const size
     return true;
 }
 
-bool patchlib_array_copy_to_c(void* dest, patch_handle_t src, const size_t count) {
+bool patchlib_array_copy_to_c(void *dest, patch_handle_t src, const size_t count) {
     TEKLOG_DEBUG("patchlib_array_copy_to_c called: dest=%p, src=%p, count=%zu", dest, src, count);
 
     if (!dest) {
@@ -107,4 +108,22 @@ bool patchlib_array_copy_to_c(void* dest, patch_handle_t src, const size_t count
     il2cpp_array_copy_to_c(dest, src, count);
 
     return true;
+}
+
+bool patchlib_array_copy(patch_handle_t dest, patch_handle_t src, const size_t count) {
+    TEKLOG_DEBUG("patchlib_array_copy called: dest=%p, src=%p, count=%zu", dest, src, count);
+
+    if (!patchlib_is_valid(dest)) {
+        TEKLOG_ERROR("Invalid destination array handle");
+        return false;
+    }
+
+    if (!patchlib_is_valid(src)) {
+        TEKLOG_ERROR("Invalid source array handle");
+        return false;
+    }
+
+    // 直接调用 il2cpp_array_copy，由 C# 端处理所有逻辑
+    // 包括类型检查、自动适应、引用类型处理等
+    return il2cpp_array_copy(dest, src, count);
 }

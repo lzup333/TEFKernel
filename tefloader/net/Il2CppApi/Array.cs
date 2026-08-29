@@ -103,15 +103,15 @@ public static class Array
 
         var indices = new int[array.Rank];
         var remaining = flatIndex;
-        
+
         // 从最后一维开始计算（行主序）
-        for (int i = array.Rank - 1; i >= 0; i--)
+        for (var i = array.Rank - 1; i >= 0; i--)
         {
             var dimSize = array.GetLength(i);
             indices[i] = remaining % dimSize;
             remaining /= dimSize;
         }
-        
+
         return indices;
     }
 
@@ -239,7 +239,6 @@ public static class Array
                 // 值类型：读取一次值，然后填充所有元素
                 var fillValue = Marshal.PtrToStructure((IntPtr)value, elementType);
                 for (var i = 0; i < array.Length; i++)
-                {
                     if (array.Rank > 1)
                     {
                         var indices = GetMultiDimensionalIndices(array, i);
@@ -249,7 +248,6 @@ public static class Array
                     {
                         array.SetValue(fillValue, i);
                     }
-                }
             }
             else
             {
@@ -257,7 +255,6 @@ public static class Array
                 var objPtr = *(IntPtr*)value;
                 var fillValue = objPtr == IntPtr.Zero ? null : Utils.PtrToObject(objPtr);
                 for (var i = 0; i < array.Length; i++)
-                {
                     if (array.Rank > 1)
                     {
                         var indices = GetMultiDimensionalIndices(array, i);
@@ -267,7 +264,6 @@ public static class Array
                     {
                         array.SetValue(fillValue, i);
                     }
-                }
             }
 
             return true;
@@ -281,7 +277,7 @@ public static class Array
 
     // ==================== C 数组与托管数组之间的复制 ====================
 
-    // 额外功能：il2cpp_array_copy_from_c - 从 C 数组复制到托管数组（支持多维数组）
+    // 额外功能：il2cpp_array_copy_from_c - 从 C 数组复制到托管数组（支持引用类型）
     public static unsafe bool il2cpp_array_copy_from_c(IntPtr destArrayPtr, void* src, int count)
     {
         if (destArrayPtr == IntPtr.Zero || src == null || count <= 0)
@@ -292,19 +288,32 @@ public static class Array
             var arrayHandle = GCHandle.FromIntPtr(destArrayPtr);
             var destArray = (System.Array)arrayHandle.Target;
 
+            if (destArray == null)
+                return false;
+
             if (count > destArray.Length)
                 count = destArray.Length;
 
             var elementType = destArray.GetType().GetElementType();
-            var elementSize = Marshal.SizeOf(elementType!);
 
-            if (elementType!.IsValueType)
+            // 检查元素类型
+            if (elementType == null)
+                return false;
+
+            // 获取元素大小（用于值类型）
+            int elementSize;
+            var isValueType = elementType.IsValueType;
+
+            if (isValueType)
+            {
+                elementSize = Marshal.SizeOf(elementType);
+
                 // 值类型：直接从内存复制
                 for (var i = 0; i < count; i++)
                 {
                     var elementPtr = (IntPtr)src + i * elementSize;
                     var value = Marshal.PtrToStructure(elementPtr, elementType);
-                    
+
                     if (destArray.Rank > 1)
                     {
                         var indices = GetMultiDimensionalIndices(destArray, i);
@@ -315,13 +324,32 @@ public static class Array
                         destArray.SetValue(value, i);
                     }
                 }
+            }
             else
-                // 引用类型：从 GCHandle 数组复制
+            {
+                // 引用类型：从 GCHandle 指针数组复制
+                // 注意：src 指向的是 GCHandle 指针数组，每个元素是 IntPtr
                 for (var i = 0; i < count; i++)
                 {
-                    var objPtr = *(IntPtr*)((byte*)src + i * IntPtr.Size);
-                    var value = objPtr == IntPtr.Zero ? null : Utils.PtrToObject(objPtr);
-                    
+                    // 读取 GCHandle 指针
+                    var handlePtr = *(IntPtr*)((byte*)src + i * IntPtr.Size);
+                    object? value;
+
+                    if (handlePtr == IntPtr.Zero)
+                        value = null;
+                    else
+                        try
+                        {
+                            // 从 GCHandle 获取对象
+                            var handle = GCHandle.FromIntPtr(handlePtr);
+                            value = handle.Target;
+                        }
+                        catch
+                        {
+                            // 如果无法从 GCHandle 获取，尝试直接转换指针为对象
+                            value = Utils.PtrToObject(handlePtr);
+                        }
+
                     if (destArray.Rank > 1)
                     {
                         var indices = GetMultiDimensionalIndices(destArray, i);
@@ -332,6 +360,7 @@ public static class Array
                         destArray.SetValue(value, i);
                     }
                 }
+            }
 
             return true;
         }
@@ -342,7 +371,7 @@ public static class Array
         }
     }
 
-    // 额外功能：il2cpp_array_copy_to_c - 从托管数组复制到 C 数组（支持多维数组）
+// 额外功能：il2cpp_array_copy_to_c - 从托管数组复制到 C 数组（支持引用类型）
     public static unsafe bool il2cpp_array_copy_to_c(void* dest, IntPtr srcArrayPtr, int count)
     {
         if (dest == null || srcArrayPtr == IntPtr.Zero || count <= 0)
@@ -353,17 +382,27 @@ public static class Array
             var arrayHandle = GCHandle.FromIntPtr(srcArrayPtr);
             var srcArray = (System.Array)arrayHandle.Target;
 
+            if (srcArray == null)
+                return false;
+
             if (count > srcArray.Length)
                 count = srcArray.Length;
 
             var elementType = srcArray.GetType().GetElementType();
-            var elementSize = Marshal.SizeOf(elementType!);
 
-            if (elementType!.IsValueType)
+            if (elementType == null)
+                return false;
+
+            var isValueType = elementType.IsValueType;
+
+            if (isValueType)
+            {
                 // 值类型：直接复制到内存
+                var elementSize = Marshal.SizeOf(elementType);
+
                 for (var i = 0; i < count; i++)
                 {
-                    object value;
+                    object? value;
                     if (srcArray.Rank > 1)
                     {
                         var indices = GetMultiDimensionalIndices(srcArray, i);
@@ -373,15 +412,22 @@ public static class Array
                     {
                         value = srcArray.GetValue(i);
                     }
-                    
+
                     var elementPtr = (IntPtr)dest + i * elementSize;
-                    Marshal.StructureToPtr(value, elementPtr, false);
+
+                    if (value != null)
+                        Marshal.StructureToPtr(value, elementPtr, false);
+                    else
+                        // 如果是 null，清零
+                        *(long*)elementPtr = 0;
                 }
+            }
             else
-                // 引用类型：存储 GCHandle 指针
+            {
+                // 引用类型：存储 GCHandle 指针到 C 数组
                 for (var i = 0; i < count; i++)
                 {
-                    object value;
+                    object? value;
                     if (srcArray.Rank > 1)
                     {
                         var indices = GetMultiDimensionalIndices(srcArray, i);
@@ -391,20 +437,120 @@ public static class Array
                     {
                         value = srcArray.GetValue(i);
                     }
-                    
+
                     var destPtr = (IntPtr*)dest + i;
 
                     if (value == null)
+                    {
                         *destPtr = IntPtr.Zero;
+                    }
                     else
-                        *destPtr = Utils.ObjectToPtr(value);
+                    {
+                        // 分配 GCHandle 并返回指针
+                        var handle = GCHandle.Alloc(value);
+                        *destPtr = GCHandle.ToIntPtr(handle);
+                    }
                 }
+            }
 
             return true;
         }
         catch (Exception ex)
         {
             Logger.Error($"Failed to copy to C array: {ex.Message}");
+            return false;
+        }
+    }
+
+    // il2cpp_array_copy - 直接从源数组复制到目标数组（高性能版本）
+    public static bool il2cpp_array_copy(IntPtr destArrayPtr, IntPtr srcArrayPtr, int count)
+    {
+        if (destArrayPtr == IntPtr.Zero || srcArrayPtr == IntPtr.Zero)
+            return false;
+
+        try
+        {
+            var destHandle = GCHandle.FromIntPtr(destArrayPtr);
+            var srcHandle = GCHandle.FromIntPtr(srcArrayPtr);
+
+            var destArray = (System.Array)destHandle.Target;
+            var srcArray = (System.Array)srcHandle.Target;
+
+            if (destArray == null || srcArray == null)
+                return false;
+
+            // 自动适应
+            count = count <= 0
+                ? Math.Min(destArray.Length, srcArray.Length)
+                : Math.Min(count, Math.Min(destArray.Length, srcArray.Length));
+
+            if (count <= 0)
+                return true;
+
+            var destElementType = destArray.GetType().GetElementType();
+            var srcElementType = srcArray.GetType().GetElementType();
+
+            // 如果类型相同且是一维数组，使用 Array.Copy（最快）
+            if (destElementType == srcElementType && destArray.Rank == 1 && srcArray.Rank == 1)
+            {
+                System.Array.Copy(srcArray, 0, destArray, 0, count);
+                return true;
+            }
+
+            // 如果类型相同但可能是多维数组，使用 Array.Copy 也能处理
+            if (destElementType == srcElementType)
+            {
+                // Array.Copy 支持多维数组
+                System.Array.Copy(srcArray, 0, destArray, 0, count);
+                return true;
+            }
+
+            // 类型不同，需要逐元素转换（保持原有逻辑）
+            Logger.Warning($"Copying between different element types: {srcElementType} -> {destElementType}");
+
+            for (var i = 0; i < count; i++)
+            {
+                object? value;
+
+                // 从源数组读取
+                if (srcArray.Rank > 1)
+                {
+                    var indices = GetMultiDimensionalIndices(srcArray, i);
+                    value = srcArray.GetValue(indices);
+                }
+                else
+                {
+                    value = srcArray.GetValue(i);
+                }
+
+                // 类型转换
+                if (value != null && value.GetType() != destElementType)
+                    try
+                    {
+                        value = Convert.ChangeType(value, destElementType!);
+                    }
+                    catch
+                    {
+                        Logger.Warning($"Cannot convert {value.GetType()} to {destElementType}");
+                    }
+
+                // 写入目标数组
+                if (destArray.Rank > 1)
+                {
+                    var indices = GetMultiDimensionalIndices(destArray, i);
+                    destArray.SetValue(value, indices);
+                }
+                else
+                {
+                    destArray.SetValue(value, i);
+                }
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"Failed to copy array: {ex.Message}");
             return false;
         }
     }

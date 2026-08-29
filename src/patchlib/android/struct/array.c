@@ -79,26 +79,6 @@ static bool is_element_size_valid(size_t element_size) {
     return true;
 }
 
-// 创建新数组（支持任意元素大小）
-patch_handle_t patchlib_array_new(patch_handle_t element_type, const uint32_t length) {
-    if (!element_type) {
-        TEKLOG_ERROR("Element type is NULL");
-        return NULL;
-    }
-
-    // 使用 IL2CPP API 创建数组
-    patch_handle_t array = il2cpp_array_new(element_type, length);
-    if (!array) {
-        TEKLOG_ERROR("Failed to create array with length %u", length);
-        return NULL;
-    }
-
-    TEKLOG_DEBUG("Created array: length=%u, element_size=%zu",
-                 length, get_array_element_size(array));
-
-    return array;
-}
-
 bool patchlib_array_at(patch_handle_t array, const size_t index, void* out_value) {
     if (!patchlib_is_valid(array)) {
         TEKLOG_ERROR("Invalid array handle");
@@ -252,6 +232,67 @@ bool patchlib_array_copy_to_c(void* dest, patch_handle_t src, const size_t count
     memcpy(dest, src_data, count * element_size);
 
     TEKLOG_DEBUG("Copied %zu elements (size=%zu) from array", count, element_size);
+
+    return true;
+}
+
+bool patchlib_array_copy(patch_handle_t dest, patch_handle_t src, const size_t count) {
+    // 参数验证
+    if (!patchlib_is_valid(dest)) {
+        TEKLOG_ERROR("Invalid destination array handle");
+        return false;
+    }
+
+    if (!patchlib_is_valid(src)) {
+        TEKLOG_ERROR("Invalid source array handle");
+        return false;
+    }
+
+    if (count == 0) {
+        TEKLOG_DEBUG("Copy count is 0, skipping");
+        return true;  // 空操作
+    }
+
+    // 获取数组长度
+    const uint32_t dest_len = il2cpp_array_length(dest);
+    const uint32_t src_len = il2cpp_array_length(src);
+
+    // 边界检查
+    if (count > dest_len) {
+        TEKLOG_ERROR("Count %zu exceeds destination array length %u", count, dest_len);
+        return false;
+    }
+
+    if (count > src_len) {
+        TEKLOG_ERROR("Count %zu exceeds source array length %u", count, src_len);
+        return false;
+    }
+
+    // 获取元素大小
+    const size_t dest_element_size = get_array_element_size(dest);
+    const size_t src_element_size = get_array_element_size(src);
+
+    if (!is_element_size_valid(dest_element_size) || !is_element_size_valid(src_element_size)) {
+        return false;
+    }
+
+    // 检查元素大小是否一致
+    if (dest_element_size != src_element_size) {
+        TEKLOG_ERROR("Element size mismatch: dest=%zu, src=%zu",
+                     dest_element_size, src_element_size);
+        return false;
+    }
+
+    // 计算数据指针
+    char* dest_data = ARRAY_DATA_START(dest);
+    const char* src_data = ARRAY_DATA_START(src);
+
+    // 复制数据
+    const size_t total_bytes = count * dest_element_size;
+    memcpy(dest_data, src_data, total_bytes);
+
+    TEKLOG_DEBUG("Copied %zu elements (size=%zu, total=%zu bytes) from src to dest",
+                 count, dest_element_size, total_bytes);
 
     return true;
 }

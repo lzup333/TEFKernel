@@ -31,10 +31,11 @@
 #include "internal/crash_handler.h"
 
 #include "internal/terraria/asset.h"
+#include "internal/terraria/item_manager.h"
 #include "internal/terraria/main.h"
 #include "internal/terraria/netmanager.h"
+#include "internal/terraria/set_factory.h"
 #include "internal/terraria/texture2d.h"
-#include "terraria/texture2d.h"
 
 
 #ifdef _WIN32
@@ -108,6 +109,9 @@ API_EXPORT int init_tefkernel(const char* workdir, bool is_server) {
     terraria_main_init(is_server);
     terraria_texture2d_init(is_server);
     terraria_asset_init();
+    terraria_item_manager_init();
+    terraria_set_factory_init();
+
     tefkernel_init();
     tefkernel_load();
     tefkernel_start();

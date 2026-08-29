@@ -486,7 +486,6 @@ DEFINE_IL2CPP_API(bool, il2cpp_array_set, void* array, size_t index, void* new_v
  * @return 执行结果
  */
 DEFINE_IL2CPP_API(bool, il2cpp_array_fill, void* array, void* value)
-
 /**
  * @brief 从 C 数组复制到 IL2CPP 数组
  * @param dest IL2CPP 目标数组
@@ -504,6 +503,15 @@ DEFINE_IL2CPP_API(bool, il2cpp_array_copy_from_c, void* dest, const void* src, s
  * @return 执行结果
  */
 DEFINE_IL2CPP_API(bool, il2cpp_array_copy_to_c, void* dest, void* src, size_t count)
+
+/**
+ * @brief 从 IL2CPP 数组复制到 IL2CPP 数组（高性能，支持引用类型）
+ * @param dest 目标 IL2CPP 数组
+ * @param src 源 IL2CPP 数组
+ * @param count 要复制的元素个数（0 表示自动适应到目标数组大小）
+ * @return 执行结果
+ */
+DEFINE_IL2CPP_API(bool, il2cpp_array_copy, void* dest, void* src, size_t count)
 #endif
 
 /**

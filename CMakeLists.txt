@@ -78,6 +78,8 @@ set(TERRARIA_SRC
         src/terraria/common/netmanager.c
         src/terraria/common/main.c
         src/terraria/common/asset.c
+        src/terraria/common/item_manager.c
+        src/terraria/common/set_factory.c
 )
 
 set(TEFPACKAGE_SRC

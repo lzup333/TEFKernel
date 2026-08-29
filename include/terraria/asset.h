@@ -46,6 +46,13 @@ extern "C" {
  */
 DEFINE_FUNCTION(patch_handle_t, terraria_asset_create, patch_handle_t type, patch_handle_t value)
 
+/**
+ * @brief 获取指定类型的 Asset`1 泛型类句柄
+ * @param element_type 元素类型句柄（如 Texture2D, LocalizedText 等）
+ * @return 泛型 Asset`1[element_type] 的类句柄，失败返回 PATCH_NULL
+ */
+DEFINE_FUNCTION(patch_handle_t, terraria_asset_get_generic_class, patch_handle_t element_type)
+
 #ifdef __cplusplus
 }
 #endif
