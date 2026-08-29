@@ -27,6 +27,7 @@
 #include <string.h>
 
 #include "internal/log.h"
+#include "../../patchlib/il2cpp_api.h"
 #include "patchlib/field.h"
 #include "patchlib/method.h"
 #include "patchlib/struct/array.h"
@@ -195,6 +196,141 @@ static int compare_item(const void *a, const void *b) {
 }
 
 // 初始化
+
+#if !__ANDROID__
+// PC端：AssetInitializer.LoadTextures 会按 TextureAssets.Item 的新长度遍历，
+// 并读取 ItemID.Sets.TextureCopyLoad[i]（原版长度只有 ItemID.Count），
+// 导致 IndexOutOfRangeException 中断整个贴图加载（表现为游戏无贴图）。
+// 同时该函数会用原版 Images/Item_x 覆盖自定义物品贴图。
+// 因此：1) resize 时同步扩充 TextureCopyLoad；2) LoadTextures 之后重新写入自定义贴图。
+static void load_textures_postfix(patch_handle_t this, void **args, void *result,
+                                  const patch_method_signature_t *sig_info) {
+    TEKLOG_INFO("AssetInitializer.LoadTextures postfix: re-applying custom item textures");
+    terraria_item_manager_init_texture2d();
+}
+
+static void resize_array(const char* ns, const char* cls, const char* fid,
+                         patch_handle_t type, const int nsize);
+
+// 一次性扩容 ItemID.Sets 中所有长度为 ItemID.Count 的静态数组。
+// 游戏代码大量按 item.type 索引这些集合（ItemIconPulse、TrapSigned、TextureCopyLoad 等），
+// 任何一个没扩容都会导致绘制自定义物品时 IndexOutOfRangeException（表现为图标"透明"或崩溃）。
+static void resize_all_itemid_sets(const int base_count, const int new_size) {
+    patch_handle_t sets_class = patchlib_type_get_type("Terraria.ID", "ItemID+Sets");
+    if (!patchlib_is_valid(sets_class)) {
+        TEKLOG_ERROR("resize_all_itemid_sets: Failed to get ItemID+Sets class");
+        return;
+    }
+
+    int size = 0;
+    void** fields = (void**) il2cpp_class_get_fields(sets_class, &size);
+    if (!fields || size <= 0) {
+        TEKLOG_ERROR("resize_all_itemid_sets: Failed to get fields of ItemID+Sets");
+        patchlib_free(sets_class);
+        return;
+    }
+
+    int resized = 0;
+    int skipped = 0;
+    for (int i = 0; i < size; i++) {
+        patch_handle_t field = fields[i];
+        if (!patchlib_is_valid(field)) continue;
+
+        patch_handle_t array = PATCH_NULL;
+        patchlib_field_get_value(field, NULL, &array);
+        if (!patchlib_is_valid(array)) {
+            continue;
+        }
+
+        const size_t len = patchlib_array_length(array);
+        if (len != (size_t)base_count) {
+            patchlib_free(array);
+            skipped++;
+            continue;
+        }
+
+        patch_handle_t new_array = il2cpp_array_resize(array, new_size);
+        if (patchlib_is_valid(new_array)) {
+            patchlib_field_set_value(field, NULL, &new_array);
+            const char* name = patchlib_field_get_name(field);
+            TEKLOG_DEBUG("resize_all_itemid_sets: resized ItemID.Sets.%s (%zu -> %d)",
+                         name ? name : "?", len, new_size);
+            patchlib_free(new_array);
+            resized++;
+        } else {
+            skipped++;
+        }
+        patchlib_free(array);
+    }
+
+    TEKLOG_INFO("resize_all_itemid_sets: %d arrays resized, %d skipped", resized, skipped);
+    patchlib_free(sets_class);
+}
+
+static void resize_texture_copy_load(const int new_size) {
+    patch_handle_t sets_class = patchlib_type_get_type("Terraria.ID", "ItemID+Sets");
+    if (!patchlib_is_valid(sets_class)) {
+        TEKLOG_ERROR("resize_texture_copy_load: Failed to get ItemID+Sets class");
+        return;
+    }
+
+    patch_handle_t field = patchlib_type_get_field(sets_class, "TextureCopyLoad");
+    if (!patchlib_is_valid(field)) {
+        TEKLOG_ERROR("resize_texture_copy_load: Failed to get TextureCopyLoad field");
+        patchlib_free(sets_class);
+        return;
+    }
+
+    patch_handle_t int32_type = patchlib_get_basic_type(PATCH_INT32);
+    resize_array("Terraria.ID", "ItemID+Sets", "TextureCopyLoad", int32_type, new_size);
+
+    // 将新增区域填充为 -1（表示无复制源，与原版默认值一致）
+    patch_handle_t array = PATCH_NULL;
+    patchlib_field_get_value(field, NULL, &array);
+    if (patchlib_is_valid(array)) {
+        const int base_count = terraria_item_id_get_count();
+        for (int i = base_count; i < new_size; i++) {
+            const int32_t value = -1;
+            patchlib_array_set(array, (size_t)i, &value);
+        }
+        patchlib_free(array);
+    }
+
+    patchlib_free(int32_type);
+    patchlib_free(field);
+    patchlib_free(sets_class);
+}
+
+// Main.itemAnimations 是 DrawAnimation[ItemID.Count]，
+// 绘制自定义物品图标（ItemSlot.DrawItemIcon / Main.LoadItem / 更新动画等）时会按 type 索引，必须同步扩容。
+// 新增区域为 null，表示自定义物品没有动画帧，符合预期。
+static void resize_item_animations(const int new_size) {
+    patch_handle_t draw_animation_class = patchlib_type_get_type("Terraria.DataStructures", "DrawAnimation");
+    if (!patchlib_is_valid(draw_animation_class)) {
+        TEKLOG_ERROR("resize_item_animations: Failed to get DrawAnimation class");
+        return;
+    }
+
+    patch_handle_t main_class = patchlib_type_get_type("Terraria", "Main");
+    if (!patchlib_is_valid(main_class)) {
+        TEKLOG_ERROR("resize_item_animations: Failed to get Main class");
+        patchlib_free(draw_animation_class);
+        return;
+    }
+
+    patch_handle_t field = patchlib_type_get_field(main_class, "itemAnimations");
+    if (patchlib_is_valid(field)) {
+        resize_array("Terraria", "Main", "itemAnimations", draw_animation_class, new_size);
+        patchlib_free(field);
+    } else {
+        TEKLOG_ERROR("resize_item_animations: Failed to get Main.itemAnimations field");
+    }
+
+    patchlib_free(main_class);
+    patchlib_free(draw_animation_class);
+}
+#endif
+
 void terraria_item_manager_init() {
     if (!tefstd_vector_init(&g_terraria_item_registry, sizeof(terraria_item_handle_t *))) return;
 
@@ -217,6 +353,28 @@ void terraria_item_manager_init() {
     patchlib_free(item_class);
     patchlib_free(set_defaults);
     patchlib_free(item_id_class);
+
+#if !__ANDROID__
+    // PC端：在原版贴图加载完成后重新写入自定义物品贴图（原版会覆盖整个数组）
+    patch_handle_t asset_initializer_class = patchlib_type_get_type("Terraria.Initializers", "AssetInitializer");
+    if (patchlib_is_valid(asset_initializer_class)) {
+        patch_handle_t load_textures = patchlib_type_get_method_by_param_count(asset_initializer_class, "LoadTextures", 1);
+        if (patchlib_is_valid(load_textures)) {
+            patch_hook_id_t hook_id = patchlib_install_prepost_hook(load_textures, NULL, load_textures_postfix);
+            if (hook_id != PATCH_HOOK_INVALID_ID) {
+                TEKLOG_INFO("AssetInitializer.LoadTextures hook installed successfully");
+            } else {
+                TEKLOG_ERROR("Failed to install AssetInitializer.LoadTextures hook");
+            }
+            patchlib_free(load_textures);
+        } else {
+            TEKLOG_ERROR("Failed to get AssetInitializer.LoadTextures method");
+        }
+        patchlib_free(asset_initializer_class);
+    } else {
+        TEKLOG_ERROR("Failed to get AssetInitializer class");
+    }
+#endif
 }
 
 void terraria_item_manager_destroy() {
@@ -307,7 +465,9 @@ void terraria_item_manager_init_texture2d() {
 
     // 检查数组是否足够大
     if (base_count + (int)custom_count > array_len) {
-        TEKLOG_ERROR("Array too small: need %d, have %zu", base_count + (int)custom_count, array_len);
+        // PC端 LoadTextures postfix 可能在 Initialize_AlmostEverything（数组扩容）之前触发，
+        // 此时数组还未扩容，属于正常情况，等待后续扩容后再写入贴图即可
+        TEKLOG_DEBUG("Array too small: need %d, have %zu (arrays not resized yet)", base_count + (int)custom_count, array_len);
         return;
     }
 
@@ -468,6 +628,15 @@ void terraria_item_manager_resize() {
     // 引用类型数组 - 使用 PATCH_OBJECT（但实际类型需要匹配）
     resize_array("Terraria.GameContent", "TextureAssets", "Item", asset_type, new_size);
     resize_array("Terraria.GameContent", "TextureAssets", "ItemFlame", asset_type, new_size);
+
+#if !__ANDROID__
+    // PC端：一次性扩容 ItemID.Sets 所有按 ItemID.Count 定长的数组
+    resize_all_itemid_sets(terraria_item_id_get_count(), new_size);
+    // TextureCopyLoad 新增区域需填 -1（通用扩容后此函数只负责填充）
+    resize_texture_copy_load(new_size);
+    // PC端 绘制物品图标时按 type 索引 Main.itemAnimations，必须同步扩充
+    resize_item_animations(new_size);
+#endif
 
     patchlib_free(bool_type);
     patchlib_free(texture_type);

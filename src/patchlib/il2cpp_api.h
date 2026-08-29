@@ -535,6 +535,16 @@ DEFINE_IL2CPP_API(uint32_t, il2cpp_array_get_byte_length, void* array)
  */
 DEFINE_IL2CPP_API(uint32_t, il2cpp_array_length, void* array)
 
+#if !defined(__ANDROID__)
+/**
+ * @brief 扩容数组（仅桌面端）：创建新数组并复制旧数据
+ * @param array 数组对象句柄
+ * @param new_size 新数组长度
+ * @return 新数组句柄，失败返回 NULL
+ */
+DEFINE_IL2CPP_API(void*, il2cpp_array_resize, void* array, int new_size)
+#endif
+
 #if defined(__ANDROID__)
 /**
  * @brief 从System.Type获取类
