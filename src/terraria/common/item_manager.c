@@ -222,14 +222,12 @@ static void load_textures_postfix(patch_handle_t this, void **args, void *result
 // 一次性扩容 ItemID.Sets 中所有长度为 ItemID.Count 的静态数组。
 // 游戏代码大量按 item.type 索引这些集合（ItemIconPulse、TrapSigned、TextureCopyLoad 等），
 // 任何一个没扩容都会导致绘制自定义物品时 IndexOutOfRangeException（表现为图标"透明"或崩溃）。
-static void resize_all_itemid_sets(const int base_count, const int new_size) {
-    patch_handle_t item_id_class = patchlib_type_get_type("Terraria.ID", "ItemID");
-    patch_handle_t sets_class = patchlib_type_get_inner_type(item_id_class, "Sets");
-
-    patchlib_free(item_id_class);
+static void resize_all_class_sets(const char* ns, const char* cls,
+                                  const int base_count, const int new_size) {
+    patch_handle_t sets_class = patchlib_type_get_type(ns, cls);
 
     if (!patchlib_is_valid(sets_class)) {
-        TEKLOG_ERROR("resize_all_itemid_sets: Failed to get ItemID+Sets class");
+        TEKLOG_ERROR("resize_all_class_sets: Failed to get %s.%s", ns, cls);
         return;
     }
 
@@ -237,7 +235,7 @@ static void resize_all_itemid_sets(const int base_count, const int new_size) {
     tefstd_vector_init(&fields, sizeof(patch_handle_t));
     patchlib_type_get_fields(sets_class, false, &fields);
     if (!fields.data || fields.size <= 0) {
-        TEKLOG_ERROR("resize_all_itemid_sets: Failed to get fields of ItemID+Sets");
+        TEKLOG_ERROR("resize_all_class_sets: Failed to get fields of %s.%s", ns, cls);
         patchlib_free(sets_class);
         tefstd_vector_destroy(&fields);
         return;
@@ -350,9 +348,20 @@ static void resize_all_itemid_sets(const int base_count, const int new_size) {
 
     tefstd_vector_destroy(&fields);
 
-    TEKLOG_INFO("resize_all_itemid_sets: %d arrays resized, %d skipped, %d errors",
-                resized, skipped, error);
+    TEKLOG_INFO("resize_all_class_sets: %s.%s %d arrays resized, %d skipped, %d errors",
+                ns, cls, resized, skipped, error);
     patchlib_free(sets_class);
+}
+
+// 一次性扩容所有按 ItemID.Count 定长、按物品 type 索引的静态集合类：
+// - ItemID.Sets：116 个集合（ItemIconPulse、TrapSigned、TextureCopyLoad 等）
+// - PrefixLegacy+ItemSets：7 个 bool[]（Item.Prefix 掷前缀路径，无边界检查，
+//   合成产物 Prefix(-1) 时越界导致材料消耗但物品消失）
+// - AmmoID+Sets：3 个 bool[]（弹药类型判断，无边界检查）
+static void resize_all_itemid_sets(const int base_count, const int new_size) {
+    resize_all_class_sets("Terraria.ID", "ItemID+Sets", base_count, new_size);
+    resize_all_class_sets("Terraria.GameContent.Prefixes", "PrefixLegacy+ItemSets", base_count, new_size);
+    resize_all_class_sets("Terraria.ID", "AmmoID+Sets", base_count, new_size);
 }
 
 // Main.itemAnimations 是 DrawAnimation[ItemID.Count]，
@@ -382,6 +391,99 @@ static void resize_item_animations(const int new_size) {
 
     patchlib_free(main_class);
     patchlib_free(draw_animation_class);
+}
+
+// PC端：Lang._itemTooltipCache / _itemNameCache 按 ItemID.Count 定长，且
+// GetTooltip 无边界检查，自定义物品悬停取 tooltip 时直接越界。
+// 扩容后 _itemTooltipCache 新槽位填充 ItemTooltip.None，避免返回 null 引发 NRE。
+static void resize_lang_caches(const int base_count, const int new_size) {
+    patch_handle_t tooltip_class = patchlib_type_get_type("Terraria.UI", "ItemTooltip");
+    patch_handle_t name_class = patchlib_type_get_type("Terraria.Localization", "LocalizedText");
+    if (!patchlib_is_valid(tooltip_class) || !patchlib_is_valid(name_class)) {
+        TEKLOG_ERROR("resize_lang_caches: Failed to get ItemTooltip/LocalizedText class");
+        if (patchlib_is_valid(tooltip_class)) patchlib_free(tooltip_class);
+        if (patchlib_is_valid(name_class)) patchlib_free(name_class);
+        return;
+    }
+
+    resize_array("Terraria", "Lang", "_itemTooltipCache", tooltip_class, new_size);
+    {
+        patch_handle_t lang_class = patchlib_type_get_type("Terraria", "Lang");
+        patch_handle_t f_cache = patchlib_type_get_field(lang_class, "_itemTooltipCache");
+        patch_handle_t f_none = patchlib_type_get_field(tooltip_class, "None");
+        patch_handle_t cache = PATCH_NULL;
+        patch_handle_t none = PATCH_NULL;
+        if (patchlib_is_valid(f_cache)) patchlib_field_get_value(f_cache, NULL, &cache);
+        if (patchlib_is_valid(f_none)) patchlib_field_get_value(f_none, NULL, &none);
+        if (patchlib_is_valid(cache) && patchlib_is_valid(none)) {
+            for (int i = base_count; i < new_size; i++) {
+                patchlib_array_set(cache, (size_t)i, &none);
+            }
+        }
+        if (patchlib_is_valid(cache)) patchlib_free(cache);
+        if (patchlib_is_valid(none)) patchlib_free(none);
+        if (patchlib_is_valid(f_cache)) patchlib_free(f_cache);
+        if (patchlib_is_valid(f_none)) patchlib_free(f_none);
+        patchlib_free(lang_class);
+    }
+
+    // _itemNameCache: LocalizedText[]（GetItemName 对 null 槽位有判断，无需填充）
+    resize_array("Terraria", "Lang", "_itemNameCache", name_class, new_size);
+
+    // _layerIndexForItemType: int[]（GetSortingLayerIndex 无边界检查，
+    // 物品进背包触发排序时按 type 索引，越界导致物品"消失"）
+    {
+        patch_handle_t int32_type = patchlib_get_basic_type(PATCH_INT32);
+        resize_array("Terraria.UI", "ItemSorting", "_layerIndexForItemType", int32_type, new_size);
+        patchlib_free(int32_type);
+    }
+
+    patchlib_free(tooltip_class);
+    patchlib_free(name_class);
+}
+
+// PC端：ArmorSetBonuses.SetsContaining 是锯齿数组 ArmorSetBonus[ItemID.Count][]，
+// tooltip 生成直接按 item.type 索引且无边界检查。
+// 扩容后新槽位填充 vanilla BuildLookup 使用的共享空数组（取 [0] 复用），否则 foreach null 会 NRE。
+static void resize_armor_set_bonuses(const int base_count, const int new_size) {
+    patch_handle_t bonus_class = patchlib_type_get_type("Terraria.DataStructures", "ArmorSetBonuses");
+    if (!patchlib_is_valid(bonus_class)) {
+        TEKLOG_ERROR("resize_armor_set_bonuses: Failed to get ArmorSetBonuses class");
+        return;
+    }
+
+    patch_handle_t f_sets = patchlib_type_get_field(bonus_class, "SetsContaining");
+    if (!patchlib_is_valid(f_sets)) {
+        TEKLOG_ERROR("resize_armor_set_bonuses: Failed to get SetsContaining field");
+        patchlib_free(bonus_class);
+        return;
+    }
+
+    patch_handle_t old_array = PATCH_NULL;
+    patchlib_field_get_value(f_sets, NULL, &old_array);
+    if (patchlib_is_valid(old_array)) {
+        if ((size_t)base_count == patchlib_array_length(old_array)) {
+            patch_handle_t empty = PATCH_NULL;
+            if (patchlib_array_at(old_array, 0, &empty) && patchlib_is_valid(empty)) {
+                patch_handle_t new_array = patchlib_array_resize(old_array, (size_t)new_size, NULL);
+                if (patchlib_is_valid(new_array)) {
+                    for (int i = base_count; i < new_size; i++) {
+                        patchlib_array_set(new_array, (size_t)i, &empty);
+                    }
+                    patchlib_field_set_value(f_sets, NULL, &new_array);
+                    TEKLOG_INFO("resize_armor_set_bonuses: ✅ SetsContaining resized to %d (empty slots filled)", new_size);
+                    patchlib_free(new_array);
+                }
+                patchlib_free(empty);
+            } else {
+                TEKLOG_ERROR("resize_armor_set_bonuses: Failed to read SetsContaining[0]");
+            }
+        }
+        patchlib_free(old_array);
+    }
+
+    patchlib_free(f_sets);
+    patchlib_free(bonus_class);
 }
 
 void terraria_item_manager_init() {
@@ -681,13 +783,16 @@ void terraria_item_manager_resize() {
 #if __ANDROID__
     resize_array("Terraria", "Player", "ItemUsesRightFire", bool_type, new_size);
     resize_array("", "VirtualControllerInputState", "ItemCategories", patchlib_get_basic_type(PATCH_INT32), new_size);
-#endif
-
-
+#else
     // PC端：一次性扩容 ItemID.Sets 所有按 ItemID.Count 定长的数组
     resize_all_itemid_sets(terraria_item_id_get_count(), new_size);
     // PC端 绘制物品图标时按 type 索引 Main.itemAnimations，必须同步扩充
     resize_item_animations(new_size);
+    // PC端 tooltip/名称缓存与物品排序索引同步扩容（无边界检查，越界会导致物品"消失"）
+    resize_lang_caches(terraria_item_id_get_count(), new_size);
+    // PC端 护甲套装查询锯齿数组同步扩容（tooltip 生成路径）
+    resize_armor_set_bonuses(terraria_item_id_get_count(), new_size);
+#endif
 
     patchlib_free(bool_type);
 }
