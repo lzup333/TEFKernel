@@ -111,6 +111,15 @@ extern ret (*name)(__VA_ARGS__);
  * @return 初始化状态
  */
 DEFINE_IL2CPP_API(int, il2cpp_init, const char* domain_name)
+
+
+/**
+ * @brief 创建特定类型数组
+ * @param array_type_info 数组类型信息(原始类型: Il2CppClass*)
+ * @param length 数组长度
+ * @return 数组对象(原始类型: Il2CppArray*)
+ */
+DEFINE_IL2CPP_API(void*, il2cpp_array_new_specific, void* array_type_info, uintptr_t length)
 #endif
 
 /**
@@ -540,9 +549,10 @@ DEFINE_IL2CPP_API(uint32_t, il2cpp_array_length, void* array)
  * @brief 扩容数组（仅桌面端）：创建新数组并复制旧数据
  * @param array 数组对象句柄
  * @param new_size 新数组长度
+ * @param dvalue 默认值
  * @return 新数组句柄，失败返回 NULL
  */
-DEFINE_IL2CPP_API(void*, il2cpp_array_resize, void* array, int new_size)
+DEFINE_IL2CPP_API(void*, il2cpp_array_resize, void* array, int new_size, void* dvalue)
 #endif
 
 #if defined(__ANDROID__)

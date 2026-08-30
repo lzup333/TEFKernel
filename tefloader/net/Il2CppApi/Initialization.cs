@@ -400,22 +400,22 @@ public static unsafe class Initialization
         private delegate int DelegateIl2CppArrayLength(IntPtr arrayPtr);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate IntPtr DelegateIl2CppArrayResize(IntPtr arrayPtr, int newSize);
+        private delegate IntPtr DelegateIl2CppArrayResize(IntPtr arrayPtr, int newSize, IntPtr dvalue);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate bool DelegateIl2CppArrayAt(IntPtr arrayPtr, int index, void* outValue);
+        private delegate bool DelegateIl2CppArrayAt(IntPtr arrayPtr, int index, IntPtr outValue);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate bool DelegateIl2CppArraySet(IntPtr arrayPtr, int index, void* value);
+        private delegate bool DelegateIl2CppArraySet(IntPtr arrayPtr, int index, IntPtr value);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate bool DelegateIl2CppArrayFill(IntPtr arrayPtr, void* value);
+        private delegate bool DelegateIl2CppArrayFill(IntPtr arrayPtr, IntPtr value);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate bool DelegateIl2CppArrayCopyFromC(IntPtr destArrayPtr, void* src, int count);
+        private delegate bool DelegateIl2CppArrayCopyFromC(IntPtr destArrayPtr, IntPtr src, int count);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate bool DelegateIl2CppArrayCopyToC(void* dest, IntPtr srcArrayPtr, int count);
+        private delegate bool DelegateIl2CppArrayCopyToC(IntPtr dest, IntPtr srcArrayPtr, int count);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate bool DelegateIl2CppArrayCopy(IntPtr destArrayPtr, IntPtr srcArrayPtr, int count);

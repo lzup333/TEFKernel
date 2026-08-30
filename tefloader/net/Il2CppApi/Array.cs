@@ -94,7 +94,7 @@ public static class Array
     }
 
     // il2cpp_array_resize - 扩容数组：创建新数组并复制旧数据，返回新数组句柄（失败返回 IntPtr.Zero）
-    public static IntPtr il2cpp_array_resize(IntPtr arrayPtr, int newSize)
+    public static IntPtr il2cpp_array_resize(IntPtr arrayPtr, int newSize, IntPtr dvalue)
     {
         if (arrayPtr == IntPtr.Zero || newSize <= 0)
             return IntPtr.Zero;
@@ -104,16 +104,104 @@ public static class Array
             var arrayHandle = GCHandle.FromIntPtr(arrayPtr);
             var array = (System.Array)arrayHandle.Target;
 
-            if (array == null || newSize <= array.Length)
+            if (array == null)
                 return IntPtr.Zero;
+
+            // 如果新大小小于等于旧大小，直接返回原数组
+            if (newSize <= array.Length)
+                return arrayPtr;
 
             var elementType = array.GetType().GetElementType();
             if (elementType == null)
                 return IntPtr.Zero;
 
-            var newArray = System.Array.CreateInstance(elementType, newSize);
-            System.Array.Copy(array, newArray, array.Length);
+            // 保持原有维度（多维数组）
+            System.Array newArray;
+            if (array.Rank > 1)
+            {
+                var lengths = new int[array.Rank];
+                var totalLength = 1;
+                for (var i = 0; i < array.Rank; i++)
+                {
+                    lengths[i] = array.GetLength(i);
+                    totalLength *= lengths[i];
+                }
 
+                if (totalLength < newSize)
+                {
+                    lengths[array.Rank - 1] += newSize - totalLength;
+                    newArray = System.Array.CreateInstance(elementType, lengths);
+                }
+                else
+                {
+                    newArray = System.Array.CreateInstance(elementType, lengths);
+                }
+            }
+            else
+            {
+                // 一维数组
+                newArray = System.Array.CreateInstance(elementType, newSize);
+            }
+
+            // 复制旧数据（只复制现有元素）
+            var copyCount = Math.Min(array.Length, newArray.Length);
+            System.Array.Copy(array, 0, newArray, 0, copyCount);
+
+            // ⭐ 如果提供了默认值，初始化新增的元素
+            if (dvalue != IntPtr.Zero)
+            {
+                var isValueType = elementType.IsValueType;
+
+                if (isValueType)
+                {
+                    var defaultValue = Marshal.PtrToStructure(dvalue, elementType);
+                    for (var i = copyCount; i < newArray.Length; i++)
+                        if (newArray.Rank > 1)
+                        {
+                            var indices = GetMultiDimensionalIndices(newArray, i);
+                            newArray.SetValue(defaultValue, indices);
+                        }
+                        else
+                        {
+                            newArray.SetValue(defaultValue, i);
+                        }
+
+                    Logger.Debug(
+                        $"il2cpp_array_resize: Initialized {newArray.Length - copyCount} new elements with default value");
+                }
+                else
+                {
+                    object? defaultValue = null;
+                    if (dvalue != IntPtr.Zero)
+                        try
+                        {
+                            var handle = GCHandle.FromIntPtr(dvalue);
+                            defaultValue = handle.Target;
+                        }
+                        catch
+                        {
+                            defaultValue = Utils.PtrToObject(dvalue);
+                        }
+
+                    for (var i = copyCount; i < newArray.Length; i++)
+                        if (newArray.Rank > 1)
+                        {
+                            var indices = GetMultiDimensionalIndices(newArray, i);
+                            newArray.SetValue(defaultValue, indices);
+                        }
+                        else
+                        {
+                            newArray.SetValue(defaultValue, i);
+                        }
+
+                    Logger.Debug(
+                        $"il2cpp_array_resize: Initialized {newArray.Length - copyCount} new elements with reference default");
+                }
+            }
+            // ⭐ 如果 dvalue == IntPtr.Zero，新增元素已经是默认值（由 CreateInstance 初始化）
+            // 不需要额外操作
+
+            // 分配新数组的 GCHandle
             var newHandle = GCHandle.Alloc(newArray);
             return GCHandle.ToIntPtr(newHandle);
         }
@@ -149,9 +237,9 @@ public static class Array
     // ==================== 元素操作 ====================
 
     // 额外功能：il2cpp_array_at - 获取数组元素（支持多维数组的一维索引访问）
-    public static unsafe bool il2cpp_array_at(IntPtr arrayPtr, int index, void* outValue)
+    public static unsafe bool il2cpp_array_at(IntPtr arrayPtr, int index, IntPtr outValue)
     {
-        if (arrayPtr == IntPtr.Zero || outValue == null || index < 0)
+        if (arrayPtr == IntPtr.Zero || outValue == IntPtr.Zero || index < 0)
             return false;
 
         try
@@ -182,7 +270,7 @@ public static class Array
             if (elementType!.IsValueType)
                 // 值类型直接复制
             {
-                Marshal.StructureToPtr(value, (IntPtr)outValue, false);
+                Marshal.StructureToPtr(value, outValue, false);
             }
             else
             {
@@ -201,9 +289,9 @@ public static class Array
     }
 
     // 额外功能：il2cpp_array_set - 设置数组元素（支持多维数组的一维索引访问）
-    public static unsafe bool il2cpp_array_set(IntPtr arrayPtr, int index, void* value)
+    public static unsafe bool il2cpp_array_set(IntPtr arrayPtr, int index, IntPtr value)
     {
-        if (arrayPtr == IntPtr.Zero || value == null || index < 0)
+        if (arrayPtr == IntPtr.Zero || value == IntPtr.Zero || index < 0)
             return false;
 
         try
@@ -220,7 +308,7 @@ public static class Array
             if (elementType!.IsValueType)
             {
                 // 值类型从指针读取
-                newValue = Marshal.PtrToStructure((IntPtr)value, elementType);
+                newValue = Marshal.PtrToStructure(value, elementType);
             }
             else
             {
@@ -253,9 +341,9 @@ public static class Array
     }
 
     // 额外功能：il2cpp_array_fill - 填充数组（支持多维数组）
-    public static unsafe bool il2cpp_array_fill(IntPtr arrayPtr, void* value)
+    public static unsafe bool il2cpp_array_fill(IntPtr arrayPtr, IntPtr value)
     {
-        if (arrayPtr == IntPtr.Zero || value == null)
+        if (arrayPtr == IntPtr.Zero || value == IntPtr.Zero)
             return false;
 
         try
@@ -268,7 +356,7 @@ public static class Array
             if (elementType!.IsValueType)
             {
                 // 值类型：读取一次值，然后填充所有元素
-                var fillValue = Marshal.PtrToStructure((IntPtr)value, elementType);
+                var fillValue = Marshal.PtrToStructure(value, elementType);
                 for (var i = 0; i < array.Length; i++)
                     if (array.Rank > 1)
                     {
@@ -309,9 +397,9 @@ public static class Array
     // ==================== C 数组与托管数组之间的复制 ====================
 
     // 额外功能：il2cpp_array_copy_from_c - 从 C 数组复制到托管数组（支持引用类型）
-    public static unsafe bool il2cpp_array_copy_from_c(IntPtr destArrayPtr, void* src, int count)
+    public static unsafe bool il2cpp_array_copy_from_c(IntPtr destArrayPtr, IntPtr src, int count)
     {
-        if (destArrayPtr == IntPtr.Zero || src == null || count <= 0)
+        if (destArrayPtr == IntPtr.Zero || src == IntPtr.Zero || count <= 0)
             return false;
 
         try
@@ -342,7 +430,7 @@ public static class Array
                 // 值类型：直接从内存复制
                 for (var i = 0; i < count; i++)
                 {
-                    var elementPtr = (IntPtr)src + i * elementSize;
+                    var elementPtr = src + i * elementSize;
                     var value = Marshal.PtrToStructure(elementPtr, elementType);
 
                     if (destArray.Rank > 1)
@@ -403,9 +491,9 @@ public static class Array
     }
 
 // 额外功能：il2cpp_array_copy_to_c - 从托管数组复制到 C 数组（支持引用类型）
-    public static unsafe bool il2cpp_array_copy_to_c(void* dest, IntPtr srcArrayPtr, int count)
+    public static unsafe bool il2cpp_array_copy_to_c(IntPtr dest, IntPtr srcArrayPtr, int count)
     {
-        if (dest == null || srcArrayPtr == IntPtr.Zero || count <= 0)
+        if (dest == IntPtr.Zero || srcArrayPtr == IntPtr.Zero || count <= 0)
             return false;
 
         try
@@ -444,7 +532,7 @@ public static class Array
                         value = srcArray.GetValue(i);
                     }
 
-                    var elementPtr = (IntPtr)dest + i * elementSize;
+                    var elementPtr = dest + i * elementSize;
 
                     if (value != null)
                         Marshal.StructureToPtr(value, elementPtr, false);

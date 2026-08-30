@@ -114,6 +114,15 @@ DEFINE_FUNCTION(bool, patchlib_array_copy_to_c, void* dest, patch_handle_t src, 
  */
 DEFINE_FUNCTION(bool, patchlib_array_copy, patch_handle_t dest, patch_handle_t src, size_t count);
 
+/**
+ * @brief 扩容数组
+ * @param src 数组
+ * @param nsize 新大小
+ * @param dvalue 默认值
+ * @return 扩容后的新数组
+ */
+DEFINE_FUNCTION(patch_handle_t, patchlib_array_resize, patch_handle_t src, size_t nsize, void* dvalue);
+
 #ifdef __cplusplus
 }
 #endif

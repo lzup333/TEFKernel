@@ -127,3 +127,7 @@ bool patchlib_array_copy(patch_handle_t dest, patch_handle_t src, const size_t c
     // 包括类型检查、自动适应、引用类型处理等
     return il2cpp_array_copy(dest, src, count);
 }
+
+patch_handle_t patchlib_array_resize(patch_handle_t src, const size_t nsize, void* dvalue) {
+    return il2cpp_array_resize(src, (int)nsize, dvalue);
+}

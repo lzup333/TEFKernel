@@ -53,8 +53,7 @@ static void initialize_postfix(patch_handle_t this, void **args, void *result,
                                const patch_method_signature_t *sig_info) {
     TEKLOG_INFO("Main.Initialize postfix: initializing textures and static data");
 
-    // terraria_item_manager_resize();
-    // terraria_item_manager_init_texture2d();
+    terraria_item_manager_resize();
 
     const size_t count = tefstd_vector_size(&g_terraria_item_registry);
     int initialized = 0;
